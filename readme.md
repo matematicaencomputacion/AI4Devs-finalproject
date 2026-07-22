@@ -56,7 +56,7 @@ Modo Degradado (Fallback de Resiliencia): Arquitectura con tolerancia a fallos q
 
 3. Pintado de Manzanas e Interacción: En el modo Manzanas, el lienzo permite seleccionar polígonos individuales usando herramientas como "Clic sumar", "Polígono sumar", o "Restar", permitiendo armar una zona a medida. Si la API PostGIS no se encuentra disponible, la interfaz notifica de forma transparente la activación del dataset estático GeoJSON local sin interrumpir la navegación.
 
-(Captura de pantalla mostrando la selección general por comunas y corredores de transporte)
+(8. Galería y Demostración del Prototipo (UI/UX))
 
 ### **1.4. Instrucciones de instalación:**
 > 1.4.1. Prerrequisitos:
@@ -794,11 +794,208 @@ TICKET-DB-01 (Base de Datos / PostGIS)
 
 ## 7. Pull Requests
 
-> Documenta 3 de las Pull Requests realizadas durante la ejecución del proyecto
+>Se documentan las 3 Pull Requests (PRs) principales ejecutadas durante el desarrollo del proyecto, que consolidan los cambios de arquitectura, modelo de datos y capacidades del frontend/backend.
 
-**Pull Request 1**
+### 7.1. Pull Request 1: Implementación del Triage Documental y Asignación de Responsabilidades (HU-02)
+* Título: feat(triage): add document triage workflow, SLA tracking and responsibilities matrix
 
-**Pull Request 2**
+* Rama de origen: feature/triage-documental-sla ➔ Rama de destino: main
 
-**Pull Request 3**
+* Issues vinculados: Closes #12, Closes #15
+
+* Estado: Merged
+
+### Descripción de los Cambios:
+Se implementa el flujo E2E para la validación documental de inmuebles en proceso de captación/venta. Incluye la matriz de responsabilidades individuales (Propietario vs. Agente Urbana), el cálculo automatizado de tiempos de respuesta (SLA) y la integración del webhook hacia n8n para notificaciones por WhatsApp.
+
+### Cambios Principales:
+* Frontend: Creación del componente TriageDocumental.tsx con soporte para carga de archivos, estado de revisión ("Aprobado", "Pendiente Cliente", "Gestión Agente") y exportación de resumen en PDF.
+
+* Backend (Go): Agregado de los endpoints POST /api/v1/triage y GET /api/v1/triage/{propiedad_id}/status.
+
+* Automatización: Webhook en n8n configurado para enviar alertas de vencimiento de SLA al cliente y al agente vía WhatsApp.
+
+### Lista de Chequeo (Checklist):
+* [x] Pruebas unitarias en React Testing Library para la interfaz de triage.
+
+* [x] Pruebas de integración HTTP en Go para el manejo de estados documentales.
+
+* [x] Documentación de la API actualizada en OpenAPI v1.
+
+### 7.2. Pull Request 2: Motor Geoespacial - Selección Multizona y Ajuste Fino por Manzana (HU-01 / DB-01)
+* Título: feat(gis): add spatial queries, PostGIS GIST indexes, and fine-grained polygon editing
+
+* Rama de origen: feature/gis-multizona-manzanas ➔ Rama de destino: main
+
+* Issues vinculados: Closes #18, Closes #22
+
+* Estado: Merged
+
+### 7.3. Descripción de los Cambios:
+* Se incorpora el soporte catastral a nivel de manzana y la herramienta interactiva de edición espacial (Sumar / Restar Manzanas). Permite al usuario seleccionar barrios (ej. Recoleta/Barrio Norte) y buffer de transporte (ej. Subte D) simultáneamente, realizando un ajuste fino sobre el polígono final de búsqueda.
+
+### Cambios Principales:
+* Base de Datos (PostGIS): Migraciones 015 y 016 con tablas de manzanas, barrios y la función espacial ST_Intersects / ST_DWithin geo-indexada con índices GIST.
+
+* Frontend (Leaflet/TS): Integración de capas vectoriales GeoJSON con eventos de clic por manzana para mutar el estado global de la Zona de Vida.
+
+### Lista de Chequeo (Checklist):
+* [x] Migraciones probadas en contenedor Docker con PostGIS 15+.
+
+* [x] Rendimiento de consulta espacial < 120ms para selección de hasta 50 manzanas.
+
+* [x] Cobertura de tests unitarios para los stores de estado espacial (zonaVidaStore.ts).
+
+### 7.3.Pull Request 3: Arquitectura Outbox Pattern y Handoff Transaccional a Agentes (HU-08 / BE-01)
+* Título: feat(outbox): implement transactional outbox pattern and handoff event relay
+
+* Rama de origen: feature/outbox-handoff-relay ➔ Rama de destino: main
+
+* Issues vinculados: Closes #27, Closes #30
+
+* Estado: Merged
+
+### Descripción de los Cambios:
+Garantiza la consistencia atómica entre la confirmación de la Zona de Vida y la generación del evento de Handoff hacia el sistema de agentes. Se implementa el patrón Transactional Outbox en Go para evitar pérdida de eventos en caso de caídas de red o fallos de servicios externos.
+
+Cambios Principales:
+* Backend: Implementación de transacción atómica (Upsert Zona + Insert Outbox) en internal/zonavida/repository.go.
+
+* Worker Service: Creación del servicio ejecutable outbox-relay encargado de realizar polling/listen sobre eventos pendientes y despacharlos con reintentos exponenciales y estado parked ante fallos.
+
+* Base de Datos: Scripts SQL 007_handoffs_outbox.sql y 008_outbox_backoff_parking.sql.
+
+### Lista de Chequeo (Checklist):
+* [x] Pruebas de rollback probadas forzando fallos dentro de la transacción de DB.
+
+* [x] Idempotencia del relay comprobada con duplicación de payloads.
+
+* [x] Runbook operativo de recuperación de eventos estacionados (outbox-parked.md) redactado.
+
+# 8. Galería y Demostración del Prototipo (UI/UX)
+A continuación se presentan las capturas de pantalla de la primera versión funcional del prototipo RE/MAX Urbana (Geo & AI Hub), destacando sus dos módulos principales: Zonas de Vida (Motor GIS) y Triage Legal (Pipeline de Captación).
+
+Módulo 1: Zonas de Vida — Delimitación Geográfica Multicapa
+1. Selección por Comunas de CABA
+Geometrías oficiales en tiempo real de las 15 comunas de la Ciudad Autónoma de Buenos Aires.
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/fd340498-0405-4275-9c9c-9f36927f4fdf" />
+
+2. Selección por Barrios Oficiales
+Filtro interactivo sobre los 48 barrios porteños con combinación libre entre zonas.
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/e01c6341-11ce-4295-bb10-c80891a6ceb6" />
+
+3. Trazado de Corredores de Subte (Líneas A a H)
+Visualización de la red subterránea y buffer de cobertura de 10 cuadras a la redonda desde las estaciones.
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/4015f582-235a-4aa2-bc7a-e1542c3b6aa7" />
+
+4. Corredores Ferroviarios y Red de Trenes
+Superposición de trazados de líneas de trenes urbanos (Mitre, Sarmiento, Roca, San Martín, Belgrano Sur).
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/aedda398-7a67-47e1-972d-7ecfbc9a0d90" />
+
+5. Ajuste Fino Catastral a Nivel Manzana (PostGIS)
+Herramienta de precisión para sumar o restar manzanas específicas dentro de la zona delimitada.
+<img width="1024" height="576" alt="image" src="https://github.com/user-attachments/assets/b943f5a2-84a7-4db7-8895-13793de94b8b" />
+6. Ajuste transporte
+<img width="1024" height="576" alt="image" src="https://github.com/user-attachments/assets/eecea321-9fbb-4ce3-9562-f64c825291de" />
+
+
+# Paso a Paso: Delimitación Avanzada de "Zona de Vida" por Polígono y Sugerencia Inteligente
+1. Inicio de selección espacial: Comenzamos en el visor de mapa eligiendo navegar el mapa desde la perspectiva geográfica oficial por Comunas.
+![Paso 1 - Selección por Comunas]<img width="1024" height="574" alt="image" src="https://github.com/user-attachments/assets/e93edc77-5728-4161-9570-460cb8acf8ec" />
+
+
+2. Filtrado por Comuna 13: Al tocar la Comuna 13 en el mapa, el sistema aísla los barrios pertenecientes a esta jurisdicción (Belgrano, Colegiales y Núñez).
+![Paso 2 - Comuna 13 identificada]<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/5ef6ad9d-6005-4696-8cb2-22bd8fbf26d4" />
+
+
+3. Selección del barrio Belgrano: Marcamos Belgrano como punto de partida. El sistema despliega el resumen catastral e índice de servicios del barrio.
+![Paso 3 - Barrio Belgrano seleccionado]<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/08be71ad-2d33-436c-aa1d-cd09492682d7" />
+
+
+4. Entrada al nivel catastral por manzanas: Pasamos a la pestaña Manzanas para trabajar sobre la geometría parcelaria fina sobre el plano oficial de CABA.
+![Paso 4 - Carga de la capa de manzanas en Belgrano]<img width="1024" height="576" alt="image" src="https://github.com/user-attachments/assets/02164e11-2aca-42ce-a1d6-4c64ce7d23e6" /><img width="1024" height="576" alt="image" src="https://github.com/user-attachments/assets/eeb50bc2-6087-4f67-bf56-192b4fd94c02" />
+
+
+
+5. Trazado manual de polígono personalizado: Activamos la herramienta + Polígono sumar para delimitar el corredor específico de interés ubicado entre la avenida Cramer y las vías del ferrocarril.
+![Paso 5 - Dibujo del polígono en el corredor Cramer - Tren]<img width="1024" height="576" alt="image" src="https://github.com/user-attachments/assets/99447dec-f5bb-4d29-93e0-e7538a71506c" />
+
+
+6. Cierre del polígono y detección de desborde: Al cerrar la figura geométrica (200 manzanas en Belgrano), la app detecta automáticamente que el trazado abarca parcelas pertenecientes a barrios limítrofes: Colegiales, Núñez, Palermo y Saavedra.
+![Paso 6 - Detección automática de barrios colindantes]<img width="1024" height="576" alt="image" src="https://github.com/user-attachments/assets/ccdeb18a-0a5c-4e0a-8a52-66a73fa67f2e" />
+
+
+7. Asistente inteligente de sugerencia (Foquito): El foquito del sistema ofrece la acción rápida para aceptar e integrar de forma masiva los 4 barrios colindantes tocados por el polígono.
+![Paso 7 - Menú emergente del asistente inteligente]<img width="1024" height="576" alt="image" src="https://github.com/user-attachments/assets/5358c9b6-7cc5-43b0-b34c-44ad30d319af" />
+
+
+8. Confirmación de suma masiva: Aceptamos la sugerencia del sistema, incorporando de forma transparente 122 manzanas adicionales repartidas entre Colegiales, Núñez, Palermo y Saavedra.
+![Paso 8 - Confirmación e integración de 122 manzanas]<img width="1024" height="576" alt="image" src="https://github.com/user-attachments/assets/c5bfd898-0ab9-4b5d-b663-c96b4721575a" />
+
+
+9. Zona de Vida Consolidada: Presionando el botón rojo "Confirmar mi zona", la plataforma resume y fija el área final de búsqueda compuesta por 322 manzanas divididas en 5 polígonos (Belgrano, Colegiales, Núñez, Palermo y Saavedra), lista para el handoff con el agente.
+![Paso 9 - Resumen y confirmación de la Zona de Vida]<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/b5d71b9e-7696-4dd1-83de-da3621a03813" />
+# Búsqueda por Voz y Delimitación por Estación Ancla (Congreso de Tucumán + Facultad de Medicina)
+1. Búsqueda por Voz / Texto: Utilizamos la búsqueda asistida pronunciando u escribiendo "Congreso de Tucumán". El sistema despliega de inmediato la ficha técnica de la estación ancla (Línea D - Belgrano).<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/d23158dc-26f1-4539-91bd-4b2ad894f01c" />
+
+![Paso 1 - Busqueda por Voz e Identificacion de Estacion Ancla]<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/7b60dc1d-0cb2-4be0-aec8-0e84f3ddd74e" />
+
+
+2. Configuración de caminabilidad e indicadores: Seleccionamos el rango de caminabilidad cómodo (10 cuadras / 1000m) y la app calcula al instante los servicios del entorno: 0 Salud, 2 Comisaría, 70 Educación y 54 Cultura.<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/b14320a0-b376-41a8-beb5-fed61df98f80" />
+
+![Paso 2 - Radio de caminabilidad e indice de servicios]
+
+3. Adición de segunda estación ancla: Dado el perfil de estudiante universitario, agregamos la estación Facultad de Medicina como punto clave dentro del recorrido diario.<img width="960" height="540" alt="image" src="https://github.com/user-attachments/assets/a300583b-73d4-4bc0-bc84-87612dcca4e4" />
+
+
+![Paso 3 - Seleccion de la estacion Facultad de Medicina]
+
+4. Visualización de la traza sobre Comunas: El mapa general refleja los dos nodos clave (Congreso de Tucumán y Facultad de Medicina) unidos por la traza de la Línea D atravesando la ciudad.<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/a05c9804-89f1-4038-9dba-f9145e9e9b3c" />
+
+![Paso 4 - Vista macro de las dos estaciones ancla en CABA]
+
+5. Renderizado catastral por Manzanas (Capa Leaflet/PostGIS): Al conmutar a la puerta E. Manzanas, el motor geoespacial calcula el buffer de 10 cuadras alrededor de ambas estaciones, pintando en verde las 1.985 manzanas contenidas bajo el criterio de caminabilidad seleccionado.!<img width="1024" height="576" alt="image" src="https://github.com/user-attachments/assets/8cee9232-770d-430d-b98c-e7b7b537c19f" />
+
+
+![Paso 5 - Capa de manzanas generada por radio de caminabilidad]
+
+
+
+# Flujo de Triage Legal, Estado Civil y Matriz de Responsabilidades de Captación
+1. Clasificación del Inmueble y Entorno: En primer lugar, clasificamos la tipología del inmueble (Departamento, Casa, PH o Local Comercial) y definimos su ubicación (Barrio Abierto o Barrio Cerrado / Complejo Privado).<img width="1024" height="574" alt="image" src="https://github.com/user-attachments/assets/4ac279c4-e067-41ea-8298-3673bf48ed3c" />
+
+![Paso 1 - Clasificacion de tipo de inmueble y entorno]
+
+2. Verificación de Títulos y Residencia: Validamos si el propietario cuenta con el primer testimonio (escritura original), si los titulares están vivos y si son residentes en Argentina.<img width="1024" height="574" alt="image" src="https://github.com/user-attachments/assets/d414cb39-1c3d-406a-b804-527b4c3304e3" />
+
+![Paso 2 - Pregunta inicial de titulo perfecto y residencia]
+
+3. Confirmación de Vía Rápida / Título Perfecto: Si se confirma la disponibilidad del título original y la residencia, el sistema activa la "Vía Rápida" (Riesgo Verde), disparando automáticamente el paquete estándar de comercialización.<img width="1024" height="576" alt="image" src="https://github.com/user-attachments/assets/55444ee6-5ef3-4f2f-92f3-2f03518a4ce5" />
+
+![Paso 3 - Activacion de Via Rapida]
+
+4. Módulo de Estado Civil y Origen del Bien (Art. 456 CCyCN): Evaluamos la forma de adquisición (Compra/Boleto, Herencia/Sucesión, Donación/Cesión) para determinar la naturaleza del bien (Propio o Ganancial).<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/76ae3ec1-b1ac-4ee6-a48b-c42a1732c4ae" />
+
+![Paso 4 - Origen del bien y Herencia/Sucesion]
+
+5. Protección de Vivienda Familiar y Asentamiento Conyugal: Al indicar que el inmueble es la vivienda familiar actual (aun siendo un bien propio por herencia), el sistema activa las restricciones del Art. 456 del Código Civil y Comercial, requiriendo obligatoriamente el asentamiento del cónyuge/conviviente.<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/b65e35c3-c887-4630-aa67-8a9d81d3bdd1" />
+
+![Paso 5 - Evaluacion de vivienda familiar y Art 456]
+
+6. Matriz de Colaboración: Tareas del Agente / Equipo: Se generan de forma automatizada las tareas críticas del agente (solicitar informes de dominio e inhibición, registrar la autorización de venta y programar la sesión de fotos profesionales/escaneo virtual).<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/f7332ce7-5525-4375-b889-192b1ef98cb3" />
+
+![Paso 6 - Tareas asignadas al Agente y Panel de Validacion Documental]
+
+7. Ejecución y Avance de Tareas del Agente: El agente marca las tareas completadas a medida que se ejecutan (informes solicitados, fotos coordinadas y autorización firmada), manteniendo la trazabilidad en tiempo real.<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/6d90b298-0641-49d0-ad45-78cb9cd0fb70" />
+
+![Paso 7 - Avance de tareas completadas por el Agente]
+
+8. Matriz de Responsabilidades del Propietario: El sistema explicita las obligaciones individuales del cliente (entregar liquidación de expensas, datos de la administración, copia simple del título y DNI de los titulares), alineando las expectativas y los tiempos de respuesta.
+![Paso 8 - Tareas y responsabilidades asignadas al Propietario]
+
+<img width="960" height="539" alt="image" src="https://github.com/user-attachments/assets/d847019c-bf71-4e88-beec-931b5dfc9aca" />
+
+9. Línea de tiempo con control de fases (Descubrimiento, Relevamiento, Valoración y Triage Legal con medición de SLA).
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/831752b0-7d81-45a5-961e-17ae00467cd5" />
+
 
